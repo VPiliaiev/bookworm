@@ -11,6 +11,7 @@ from borrowing.serializers import (
     BorrowingListSerializer,
     BorrowingDetailSerializer,
 )
+from payment.views import create_stripe_checkout
 
 
 class BorrowingViewSet(
@@ -52,18 +53,31 @@ class BorrowingViewSet(
 
         return queryset
 
-    def perform_create(self, serializer):
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
         book = serializer.validated_data["book"]
 
         with transaction.atomic():
             borrowing = serializer.save(
-                user=self.request.user, borrow_date=timezone.now().date()
+                user=request.user,
+                borrow_date=timezone.now().date(),
             )
-
             book.inventory -= 1
             book.save()
 
-        return borrowing
+        checkout_url = create_stripe_checkout(borrowing)
+
+        headers = self.get_success_headers(serializer.data)
+        return Response(
+            {
+                "borrowing_id": borrowing.id,
+                "checkout_url": checkout_url,
+            },
+            status=status.HTTP_201_CREATED,
+            headers=headers,
+        )
 
     @action(detail=True, methods=["post"], url_path="return")
     def return_book(self, request, pk=None):
