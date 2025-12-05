@@ -4,6 +4,7 @@ from django.http import HttpResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from borrowing.models import Borrowing
+from notification.views import send_telegram_message
 from payment.models import Payment
 from django.shortcuts import redirect
 
@@ -65,6 +66,16 @@ def stripe_webhook(request):
         if payment:
             payment.status = Payment.StatusChoices.PAID
             payment.save()
+
+            send_telegram_message(
+                settings.TELEGRAM_ADMIN_CHAT_ID,
+                (
+                    f"<b>Payment Completed</b>\n\n"
+                    f"User: {payment.borrowing.user.email}\n"
+                    f"Book: {payment.borrowing.book.title}\n"
+                    f"Amount Paid: {payment.money_to_pay}$"
+                ),
+            )
 
     return HttpResponse(status=200)
 
