@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.utils import timezone
 from django.db import transaction
 from rest_framework import viewsets, mixins, status
@@ -11,6 +12,7 @@ from borrowing.serializers import (
     BorrowingListSerializer,
     BorrowingDetailSerializer,
 )
+from notification.views import send_telegram_message
 from payment.views import create_stripe_checkout
 
 
@@ -69,6 +71,21 @@ class BorrowingViewSet(
 
         checkout_url = create_stripe_checkout(borrowing)
 
+        days = (borrowing.expected_return_date - borrowing.borrow_date).days
+        amount = borrowing.book.daily_fee * days
+
+        send_telegram_message(
+            settings.TELEGRAM_ADMIN_CHAT_ID,
+            (
+                f"<b>New Borrowing Created</b>\n\n"
+                f"User: {request.user.email}\n"
+                f"Book: {borrowing.book.title}\n"
+                f"Borrow date: {borrowing.borrow_date}\n"
+                f"Return date: {borrowing.expected_return_date}\n"
+                f"Amount to pay: {amount}$"
+            ),
+        )
+
         headers = self.get_success_headers(serializer.data)
         return Response(
             {
@@ -97,4 +114,8 @@ class BorrowingViewSet(
             borrowing.book.inventory += 1
             borrowing.book.save()
 
+        send_telegram_message(
+            settings.TELEGRAM_ADMIN_CHAT_ID,
+            f"User {borrowing.user} return the book: {borrowing.book.title}",
+        )
         return Response({"status": "book returned"})
