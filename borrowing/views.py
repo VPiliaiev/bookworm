@@ -15,6 +15,7 @@ from borrowing.serializers import (
 from notification.views import send_telegram_message
 from payment.views import create_stripe_checkout
 from rest_framework.pagination import PageNumberPagination
+from drf_spectacular.utils import extend_schema, OpenApiParameter, OpenApiResponse
 
 
 class BorrowingPagination(PageNumberPagination):
@@ -48,6 +49,26 @@ class BorrowingViewSet(
             return None
         return param.lower() in ("true", "1")
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "user_id",
+                type=int,
+                description="Filter by user id admin only",
+                required=False,
+            ),
+            OpenApiParameter(
+                "is_active",
+                type=bool,
+                description="Filter by active borrowings",
+                required=False,
+            ),
+        ],
+        responses=BorrowingListSerializer(many=True),
+    )
+    def list(self, request, *args, **kwargs):
+        return super().list(request, *args, **kwargs)
+
     def get_queryset(self):
         queryset = super().get_queryset()
         user_id = self.request.query_params.get("user_id")
@@ -63,6 +84,28 @@ class BorrowingViewSet(
 
         return queryset
 
+    @extend_schema(
+        summary="Create borrowing",
+        description=(
+            "Creates a new borrowing, decreases book inventory, creates a Stripe "
+            "checkout session and send a Telegram notification."
+            "Returns: `borrowing_id` and `checkout_url`."
+        ),
+        request=BorrowingCreateSerializer,
+        responses={
+            201: OpenApiResponse(
+                description="Borrowing successfully created",
+                examples={
+                    "example": {
+                        "borrowing_id": 12,
+                        "checkout_url": "https://checkout.stripe.com/pay/test123",
+                    }
+                },
+            ),
+            400: OpenApiResponse(description="Validation error"),
+            409: OpenApiResponse(description="Book out of stock"),
+        },
+    )
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -104,6 +147,13 @@ class BorrowingViewSet(
             headers=headers,
         )
 
+    @extend_schema(
+        description="Return a borrowed book. Send Telegram notification to admin.",
+        responses={
+            200: {"status": "book returned"},
+            400: {"detail": "Book already returned."},
+        },
+    )
     @action(detail=True, methods=["post"], url_path="return")
     def return_book(self, request, pk=None):
         borrowing = self.get_object()
