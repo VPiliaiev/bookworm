@@ -37,13 +37,16 @@ class BorrowingApiTests(TestCase):
 
     def test_authenticated_user_can_borrow_book(self):
         self.client.force_authenticate(user=self.user)
+
         data = {
             "book": self.book.id,
             "expected_return_date": (
                 timezone.now().date() + timedelta(days=7)
             ).isoformat(),
         }
+
         res = self.client.post(BORROWING_LIST_URL, data)
+
         self.assertEqual(res.status_code, status.HTTP_201_CREATED)
 
         self.book.refresh_from_db()
@@ -51,22 +54,24 @@ class BorrowingApiTests(TestCase):
 
     def test_authenticated_user_can_return_book(self):
         borrow_date = timezone.now().date()
-        borrowing = Borrowing(
+
+        borrowing = Borrowing.objects.create(
             user=self.user,
             book=self.book,
             borrow_date=borrow_date,
             expected_return_date=borrow_date + timedelta(days=7),
         )
-        borrowing.save()
 
         self.book.inventory -= 1
         self.book.save()
 
         self.client.force_authenticate(user=self.user)
+
         return_url = reverse(
             "borrowing:borrowing-return-book", kwargs={"pk": borrowing.id}
         )
         res = self.client.post(return_url)
+
         self.assertEqual(res.status_code, status.HTTP_200_OK)
 
         self.book.refresh_from_db()
@@ -78,48 +83,53 @@ class BorrowingApiTests(TestCase):
         other_user = User.objects.create_user(
             email="other@example.com", password="pass"
         )
-        borrowing_other = Borrowing(
+
+        Borrowing.objects.create(
             user=other_user,
             book=self.book,
             borrow_date=borrow_date,
             expected_return_date=borrow_date + timedelta(days=7),
         )
-        borrowing_other.save()
 
-        borrowing_self = Borrowing(
+        user_borrow = Borrowing.objects.create(
             user=self.user,
             book=self.book,
             borrow_date=borrow_date,
             expected_return_date=borrow_date + timedelta(days=7),
         )
-        borrowing_self.save()
 
         self.client.force_authenticate(user=self.user)
         res = self.client.get(BORROWING_LIST_URL)
+
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data[0]["user"]["id"], self.user.id)
+
+        self.assertEqual(res.data["count"], 1)
+        self.assertEqual(len(res.data["results"]), 1)
+
+        self.assertEqual(res.data["results"][0]["user"]["id"], self.user.id)
+        self.assertEqual(res.data["results"][0]["id"], user_borrow.id)
 
     def test_admin_see_all_borrowings(self):
         borrow_date = timezone.now().date()
 
-        borrowing_user = Borrowing(
+        Borrowing.objects.create(
             user=self.user,
             book=self.book,
             borrow_date=borrow_date,
             expected_return_date=borrow_date + timedelta(days=7),
         )
-        borrowing_user.save()
 
-        borrowing_admin = Borrowing(
+        Borrowing.objects.create(
             user=self.admin,
             book=self.book,
             borrow_date=borrow_date,
             expected_return_date=borrow_date + timedelta(days=7),
         )
-        borrowing_admin.save()
 
         self.client.force_authenticate(user=self.admin)
         res = self.client.get(BORROWING_LIST_URL)
+
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(res.data), 2)
+
+        self.assertEqual(res.data["count"], 2)
+        self.assertEqual(len(res.data["results"]), 2)

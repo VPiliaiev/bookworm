@@ -48,7 +48,7 @@ def sample_book(**params):
 
 
 class UnauthenticatedBookApiTests(TestCase):
-    def setUp(self) -> None:
+    def setUp(self):
         self.client = APIClient()
 
     def test_auth_required(self):
@@ -68,7 +68,7 @@ class UnauthenticatedBookApiTests(TestCase):
 
 
 class AuthenticatedBookApiTests(TestCase):
-    def setUp(self) -> None:
+    def setUp(self):
         self.client = APIClient()
         self.user = sample_user()
         self.client.force_authenticate(self.user)
@@ -80,7 +80,8 @@ class AuthenticatedBookApiTests(TestCase):
         res = self.client.get(BOOK_LIST_URL)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(res.data), 2)
+        self.assertEqual(res.data["count"], 2)
+        self.assertEqual(len(res.data["results"]), 2)
 
     def test_retrieve_book_detail(self):
         book = sample_book(title="Some book")
@@ -127,7 +128,7 @@ class AuthenticatedBookApiTests(TestCase):
 
 
 class AdminBookApiTests(TestCase):
-    def setUp(self) -> None:
+    def setUp(self):
         self.client = APIClient()
         self.admin_user = sample_admin_user()
         self.client.force_authenticate(self.admin_user)
@@ -153,7 +154,8 @@ class AdminBookApiTests(TestCase):
         res = self.client.get(BOOK_LIST_URL)
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertGreaterEqual(len(res.data), 2)
+        self.assertEqual(res.data["count"], 2)
+        self.assertEqual(len(res.data["results"]), 2)
 
     def test_admin_can_retrieve_book_detail(self):
         book = sample_book()

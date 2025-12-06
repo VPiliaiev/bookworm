@@ -14,6 +14,13 @@ from borrowing.serializers import (
 )
 from notification.views import send_telegram_message
 from payment.views import create_stripe_checkout
+from rest_framework.pagination import PageNumberPagination
+
+
+class BorrowingPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 10
 
 
 class BorrowingViewSet(
@@ -24,6 +31,7 @@ class BorrowingViewSet(
 ):
     queryset = Borrowing.objects.select_related("book", "user").order_by("-borrow_date")
     permission_classes = [IsAuthenticated]
+    pagination_class = BorrowingPagination
 
     def get_serializer_class(self):
         if self.action == "list":
