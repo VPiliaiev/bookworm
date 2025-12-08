@@ -23,6 +23,8 @@ packaging==25.0
 pathspec==0.12.1
 platformdirs==4.5.0
 propcache==0.4.1
+psycopg==3.3.2
+psycopg2-binary==2.9.11
 PyJWT==2.10.1
 python-dotenv==1.2.1
 pytokens==0.3.0
